@@ -2,12 +2,12 @@ const mongoose = require("mongoose");
 
 const transactionSchema = new mongoose.Schema(
   {
-    from: {
+    fromAddress: {
       type: String,
       required: true,
     },
 
-    to: {
+    toAddress: {
       type: String,
       required: true,
     },
@@ -17,16 +17,24 @@ const transactionSchema = new mongoose.Schema(
       required: true,
     },
 
-    status: {
+    publicKey: {
       type: String,
+      required: true,
+    },
 
-      enum: ["pending", "confirmed"],
-
-      default: "pending",
+    signature: {
+      type: String,
+      required: true,
     },
 
     txHash: {
       type: String,
+    },
+
+    status: {
+      type: String,
+      enum: ["pending", "confirmed"],
+      default: "pending",
     },
 
     minedInBlock: {
@@ -36,7 +44,7 @@ const transactionSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 module.exports = mongoose.model("Transaction", transactionSchema);

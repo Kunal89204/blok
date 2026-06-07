@@ -9,6 +9,8 @@ const {
   clearPendingTransactions,
 } = require("../services/mempool.service");
 const Transaction = require("../schema/transaction.schema");
+const { verifyTransaction } = require("../services/wallet.service");
+const { calculateBalance } = require("../services/balance.service");
 
 const addBlock = async (req, res) => {
   try {
@@ -290,12 +292,20 @@ const addTransaction = async (req, res) => {
   try {
 
     const {
-      from,
-      to,
+      fromAddress,
+      toAddress,
       amount,
+      publicKey,
+      signature,
     } = req.body || {};
 
-    if (!from || !to || !amount) {
+    if (
+      !fromAddress ||
+      !toAddress ||
+      !amount ||
+      !publicKey ||
+      !signature
+    ) {
 
       return sendError({
         res,
@@ -305,23 +315,81 @@ const addTransaction = async (req, res) => {
         error: {
           code: "VALIDATION_ERROR",
           details:
-            "from, to and amount are required",
+            "fromAddress, toAddress, amount, publicKey and signature are required",
         },
       });
 
     }
 
-    // Create pending transaction
+    const transactionData = {
+      fromAddress,
+      toAddress,
+      amount: Number(amount),
+    };
+
+    const isValid =
+      verifyTransaction(
+        transactionData,
+        signature,
+        publicKey
+      );
+
+    if (!isValid) {
+
+      return sendError({
+        res,
+        statusCode: 400,
+        message: "Invalid Signature",
+
+        error: {
+          code: "INVALID_SIGNATURE",
+          details:
+            "Transaction signature verification failed",
+        },
+      });
+
+    }
+
+    const txHash = SHA256(
+      JSON.stringify(transactionData)
+    ).toString();
+
+    const balance = await calculateBalance(
+      fromAddress
+    )
+
+    if (
+      balance < Number(amount)
+    ) {
+
+      return sendError({
+        res,
+        statusCode: 400,
+        message:
+          "Insufficient balance",
+
+        error: {
+          code:
+            "INSUFFICIENT_BALANCE",
+        },
+      });
+
+    }
+
     const newTransaction =
       await Transaction.create({
 
-        from,
-        to,
+        fromAddress,
+        toAddress,
 
         amount: Number(amount),
 
-        status: "pending",
+        publicKey,
+        signature,
 
+        txHash,
+
+        status: "pending",
       });
 
     return sendSuccess({
@@ -396,7 +464,7 @@ const getPendingTransactions =
 
     }
 
-};
+  };
 
 
 // -------------------------------------
@@ -524,6 +592,70 @@ const mine = async (req, res) => {
 
 };
 
+const getBalance = async (req, res) => {
+  try {
+    const walletAddress = req.params.address;
+
+    if (!walletAddress) {
+      return sendError({
+        res,
+        statusCode: 400,
+        message: "Wallet address is required",
+        error: {
+          code: "VALIDATION_ERROR",
+        },
+      });
+    }
+
+    const blocks = await Block.find();
+
+    let balance = 0;
+    let totalReceived = 0;
+    let totalSent = 0;
+
+    for (const block of blocks) {
+      for (const tx of block.transactions) {
+
+        if (tx.toAddress === walletAddress) {
+          balance += tx.amount;
+          totalReceived += tx.amount;
+        }
+
+        if (tx.fromAddress === walletAddress) {
+          balance -= tx.amount;
+          totalSent += tx.amount;
+        }
+
+      }
+    }
+
+    return sendSuccess({
+      res,
+      statusCode: 200,
+      message: "Balance fetched successfully",
+      data: {
+        walletAddress,
+        balance,
+        totalReceived,
+        totalSent,
+      },
+    });
+
+  } catch (error) {
+
+    return sendError({
+      res,
+      statusCode: 500,
+      message: "Failed to fetch balance",
+      error: {
+        code: "BALANCE_FETCH_FAILED",
+        details: error.message,
+      },
+    });
+
+  }
+};
+
 module.exports = {
   addBlock,
   getAllBlocks,
@@ -533,4 +665,5 @@ module.exports = {
   addTransaction,
   getPendingTransactions,
   mine,
+  getBalance
 };

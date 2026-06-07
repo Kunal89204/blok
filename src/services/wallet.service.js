@@ -21,6 +21,48 @@ const createWallet = () => {
   };
 };
 
+const signTransaction = (
+  transactionData,
+  privateKey
+) => {
+
+  const key = ec.keyFromPrivate(
+    privateKey
+  );
+
+  const transactionHash = SHA256(
+    JSON.stringify(transactionData)
+  ).toString();
+
+  const signature = key.sign(
+    transactionHash,
+    "hex"
+  )
+
+  return signature.toDER("hex");
+}
+
+const verifyTransaction = (transactionData,
+  signature,
+  publicKey
+) => {
+  const transactionHash = SHA256(
+    JSON.stringify(transactionData)
+  ).toString();
+
+  const key = ec.keyFromPublic(
+    publicKey,
+    "hex"
+  );
+
+  return key.verify(
+    transactionHash,
+    signature
+  )
+}
+
 module.exports = {
   createWallet,
+  signTransaction,
+  verifyTransaction
 };

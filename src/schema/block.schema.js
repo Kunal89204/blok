@@ -2,12 +2,12 @@ const { default: mongoose } = require("mongoose");
 
 const TransactionSchema = new mongoose.Schema(
   {
-    from: {
+    fromAddress: {
       type: String,
       required: true,
     },
 
-    to: {
+    toAddress: {
       type: String,
       required: true,
     },
@@ -16,8 +16,18 @@ const TransactionSchema = new mongoose.Schema(
       type: Number,
       required: true,
     },
+
+    publicKey: {
+      type: String,
+      required: true,
+    },
+
+    signature: {
+      type: String,
+      required: true,
+    },
   },
-  { _id: false },
+  { _id: false }
 );
 
 const BlockSchema = new mongoose.Schema(
