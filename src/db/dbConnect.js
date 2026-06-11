@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const connectDB = async () => {
   try {
-    await mongoose.connect("mongodb://localhost:27017/blockchain");
+    await mongoose.connect(process.env.MONGO_URI);
     console.log("DB Connected");
   } catch (error) {
     console.log("There was an error connectign with the database", error);

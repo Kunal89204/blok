@@ -19,7 +19,7 @@ const transaction = {
   toAddress:
     wallet2.walletAddress,
 
-  amount: 100,
+  amount: 40,
 };
 
 console.log(transaction);
@@ -48,7 +48,7 @@ console.log(
       toAddress:
         wallet2.walletAddress,
 
-      amount: 100,
+      amount: 40,
 
       publicKey:
         wallet1.publicKey,

@@ -11,6 +11,7 @@ const {
 const Transaction = require("../schema/transaction.schema");
 const { verifyTransaction } = require("../services/wallet.service");
 const { calculateBalance } = require("../services/balance.service");
+const { MINING_REWARD } = require("../constants/miningreward");
 
 const addBlock = async (req, res) => {
   try {
@@ -472,36 +473,47 @@ const getPendingTransactions =
 // -------------------------------------
 
 const mine = async (req, res) => {
-
   try {
 
-    // Fetch pending txs
-    const pendingTransactions =
-      await Transaction.find({
-        status: "pending",
-      }).lean();
+    const { minerAddress } = req.body;
 
-    // Empty mempool
-    if (!pendingTransactions.length) {
-
+    if (!minerAddress) {
       return sendError({
         res,
         statusCode: 400,
-        message:
-          "No pending transactions",
-
-        error: {
-          code: "EMPTY_MEMPOOL",
-        },
+        message: "Miner address required",
       });
-
     }
 
-    // Get latest block
-    const latestBlock =
-      await Block.findOne()
-        .sort({ index: -1 })
-        .lean();
+    const pendingTransactions = await Transaction
+      .find({ status: "pending" })
+      .lean();
+
+
+
+    const rewardTransaction = {
+      fromAddress: "SYSTEM",
+      toAddress: minerAddress,
+      amount: MINING_REWARD,
+      publicKey: "SYSTEM",
+      signature: "SYSTEM",
+    };
+
+    const blockTransactions = [
+      rewardTransaction,
+      ...pendingTransactions.map(tx => ({
+        fromAddress: tx.fromAddress,
+        toAddress: tx.toAddress,
+        amount: tx.amount,
+        publicKey: tx.publicKey,
+        signature: tx.signature,
+      })),
+    ];
+
+    const latestBlock = await Block
+      .findOne()
+      .sort({ index: -1 })
+      .lean();
 
     const index = latestBlock
       ? latestBlock.index + 1
@@ -509,67 +521,46 @@ const mine = async (req, res) => {
 
     const timestamp = Date.now();
 
-    const previousHash =
-      latestBlock
-        ? latestBlock.hash
-        : "0";
+    const previousHash = latestBlock
+      ? latestBlock.hash
+      : "0";
 
-    // Mine block
-    const { hash, nonce } =
-      mineBlock({
+    const { hash, nonce } = mineBlock({
+      index,
+      timestamp,
+      transactions: blockTransactions,
+      previousHash,
+    });
 
-        index,
-        timestamp,
+    const newBlock = await Block.create({
+      index,
+      timestamp,
+      transactions: blockTransactions,
+      previousHash,
+      hash,
+      nonce,
+    });
 
-        transactions:
-          pendingTransactions,
-
-        previousHash,
-
-      });
-
-    // Create block
-    const newBlock =
-      await Block.create({
-
-        index,
-        timestamp,
-
-        transactions:
-          pendingTransactions,
-
-        previousHash,
-        hash,
-        nonce,
-
-      });
-
-    // Mark txs as confirmed
     await Transaction.updateMany(
-
       {
         _id: {
           $in: pendingTransactions.map(
-            (tx) => tx._id
+            tx => tx._id
           ),
         },
       },
-
       {
         $set: {
           status: "confirmed",
           minedInBlock: index,
         },
       }
-
     );
 
     return sendSuccess({
       res,
       statusCode: 201,
-      message:
-        "Block mined successfully",
-
+      message: "Block mined successfully",
       data: {
         block: newBlock,
       },
@@ -581,7 +572,6 @@ const mine = async (req, res) => {
       res,
       statusCode: 500,
       message: "Mining failed",
-
       error: {
         code: "MINING_FAILED",
         details: error.message,
@@ -589,7 +579,6 @@ const mine = async (req, res) => {
     });
 
   }
-
 };
 
 const getBalance = async (req, res) => {
